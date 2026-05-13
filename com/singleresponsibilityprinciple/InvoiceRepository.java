@@ -1,3 +1,5 @@
+package com.singleresponsibilityprinciple;
+
 // Class 3: Only database responsibility
 class InvoiceRepository {
     private Invoice invoice;
