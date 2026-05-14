@@ -1,0 +1,158 @@
+
+<style>
+  .pool-obj { transition: all .35s cubic-bezier(.4,0,.2,1); cursor:pointer; }
+  .btn { padding:7px 18px; border-radius:8px; border:1px solid var(--color-border-secondary); background:var(--color-background-secondary); color:var(--color-text-primary); font-size:13px; cursor:pointer; transition: background .15s, opacity .15s; }
+  .btn:hover:not(:disabled) { background:var(--color-background-tertiary); }
+  .btn:disabled { opacity:.38; cursor:not-allowed; }
+  .btn-primary { background:var(--color-background-info); color:var(--color-text-info); border-color:var(--color-border-info); }
+  .log-line { font-size:12px; color:var(--color-text-secondary); padding:2px 0; border-bottom:1px solid var(--color-border-tertiary); font-family: var(--font-mono); }
+  .tag { display:inline-block; padding:1px 7px; border-radius:12px; font-size:11px; font-weight:500; }
+</style>
+
+<div style="padding:16px 0">
+
+  <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+
+    <!-- Pool -->
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Object pool</div>
+      <div id="pool-box" style="border:1.5px dashed var(--color-border-secondary);border-radius:12px;padding:14px;min-height:120px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;align-content:flex-start"></div>
+      <div style="margin-top:6px;font-size:12px;color:var(--color-text-tertiary)">Available: <span id="avail-count" style="font-weight:500;color:var(--color-text-primary)">5</span> / 5</div>
+    </div>
+
+    <!-- In use -->
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">In use</div>
+      <div id="inuse-box" style="border:1.5px dashed var(--color-border-secondary);border-radius:12px;padding:14px;min-height:120px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;align-content:flex-start"></div>
+      <div style="margin-top:6px;font-size:12px;color:var(--color-text-tertiary)">Borrowed: <span id="inuse-count" style="font-weight:500;color:var(--color-text-primary)">0</span></div>
+    </div>
+
+  </div>
+
+  <!-- Controls -->
+  <div style="display:flex;gap:10px;margin:18px 0 14px;flex-wrap:wrap;align-items:center">
+    <button class="btn btn-primary" id="btn-borrow" onclick="borrow()">Borrow object</button>
+    <button class="btn" id="btn-return" onclick="returnObj()" disabled>Return object</button>
+    <button class="btn" onclick="reset()">Reset pool</button>
+    <span id="status-msg" style="font-size:12px;color:var(--color-text-secondary);margin-left:4px"></span>
+  </div>
+
+  <!-- Stats -->
+  <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 16px;min-width:100px">
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:2px">Total borrows</div>
+      <div id="stat-borrows" style="font-size:20px;font-weight:500;color:var(--color-text-primary)">0</div>
+    </div>
+    <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 16px;min-width:100px">
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:2px">Total returns</div>
+      <div id="stat-returns" style="font-size:20px;font-weight:500;color:var(--color-text-primary)">0</div>
+    </div>
+    <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 16px;min-width:100px">
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:2px">Objects created</div>
+      <div id="stat-created" style="font-size:20px;font-weight:500;color:var(--color-text-primary)">5</div>
+    </div>
+    <div style="background:var(--color-background-secondary);border-radius:8px;padding:10px 16px;min-width:100px">
+      <div style="font-size:11px;color:var(--color-text-tertiary);margin-bottom:2px">Objects destroyed</div>
+      <div id="stat-destroyed" style="font-size:20px;font-weight:500;color:var(--color-text-primary)">0</div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div style="font-size:12px;font-weight:500;color:var(--color-text-secondary);margin-bottom:6px">Activity log</div>
+  <div id="log" style="background:var(--color-background-secondary);border-radius:8px;padding:10px 14px;max-height:140px;overflow-y:auto;font-family:var(--font-mono)"></div>
+
+</div>
+
+<script>
+const POOL_SIZE = 5;
+const colors = ['c-purple','c-teal','c-coral','c-blue','c-amber'];
+const hexFill = ['#EEEDFE','#E1F5EE','#FAECE7','#E6F1FB','#FAEEDA'];
+const hexStroke = ['#534AB7','#0F6E56','#993C1D','#185FA5','#854F0B'];
+const hexText = ['#3C3489','#085041','#712B13','#0C447C','#633806'];
+
+let pool = [];
+let inUse = [];
+let nextId = 1;
+let statBorrows = 0, statReturns = 0, statCreated = 0, statDestroyed = 0;
+
+function makeObjEl(obj, inPool) {
+  const d = document.createElement('div');
+  const ci = obj.colorIdx;
+  d.style.cssText = `width:64px;height:64px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1.5px solid ${hexStroke[ci]};background:${hexFill[ci]};font-size:11px;font-weight:500;color:${hexText[ci]};gap:3px;transition:all .3s`;
+  d.innerHTML = `<span style="font-size:18px;font-weight:500">Obj</span><span>#${obj.id}</span>`;
+  d.title = inPool ? 'Click to borrow' : 'Click to return';
+  d.onclick = inPool ? borrow : returnObj;
+  d.style.cursor = 'pointer';
+  return d;
+}
+
+function render() {
+  const pb = document.getElementById('pool-box');
+  const ib = document.getElementById('inuse-box');
+  pb.innerHTML = ''; ib.innerHTML = '';
+
+  pool.forEach(o => pb.appendChild(makeObjEl(o, true)));
+  inUse.forEach(o => ib.appendChild(makeObjEl(o, false)));
+
+  document.getElementById('avail-count').textContent = pool.length;
+  document.getElementById('inuse-count').textContent = inUse.length;
+  document.getElementById('btn-borrow').disabled = pool.length === 0;
+  document.getElementById('btn-return').disabled = inUse.length === 0;
+  document.getElementById('stat-borrows').textContent = statBorrows;
+  document.getElementById('stat-returns').textContent = statReturns;
+  document.getElementById('stat-created').textContent = statCreated;
+  document.getElementById('stat-destroyed').textContent = statDestroyed;
+
+  const msg = document.getElementById('status-msg');
+  if (pool.length === 0) { msg.textContent = 'Pool exhausted — all objects in use'; msg.style.color='var(--color-text-danger)'; }
+  else if (inUse.length === 0) { msg.textContent = 'All objects available in pool'; msg.style.color='var(--color-text-success)'; }
+  else { msg.textContent = ''; }
+}
+
+function addLog(text, type) {
+  const log = document.getElementById('log');
+  const d = document.createElement('div');
+  d.className = 'log-line';
+  const t = new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const color = type==='borrow'?'var(--color-text-info)':type==='return'?'var(--color-text-success)':'var(--color-text-secondary)';
+  d.innerHTML = `<span style="color:var(--color-text-tertiary)">${t}</span> <span style="color:${color}">${text}</span>`;
+  log.prepend(d);
+}
+
+function borrow() {
+  if (pool.length === 0) return;
+  const obj = pool.shift();
+  inUse.push(obj);
+  statBorrows++;
+  addLog(`Borrowed Obj#${obj.id} from pool (${pool.length} remaining)`, 'borrow');
+  render();
+}
+
+function returnObj() {
+  if (inUse.length === 0) return;
+  const obj = inUse.pop();
+  pool.push(obj);
+  statReturns++;
+  addLog(`Returned Obj#${obj.id} to pool (${pool.length} available)`, 'return');
+  render();
+}
+
+function reset() {
+  statDestroyed += inUse.length + pool.length;
+  pool = []; inUse = [];
+  for (let i = 0; i < POOL_SIZE; i++) {
+    pool.push({ id: nextId++, colorIdx: i % colors.length });
+  }
+  statCreated += POOL_SIZE;
+  addLog(`Pool reset — ${POOL_SIZE} new objects created`, 'info');
+  render();
+}
+
+reset();
+statCreated = POOL_SIZE;
+statDestroyed = 0;
+statBorrows = 0;
+statReturns = 0;
+render();
+addLog('Pool initialized with 5 objects', 'info');
+</script>
