@@ -1,0 +1,173 @@
+# Parking Lot Class Diagram
+
+Below is the UML class diagram showing the connections, inheritance, and compositions of all the classes and interfaces within the `parkingLot` system. 
+
+```mermaid
+classDiagram
+    %% Core Entities
+    class ParkingLot {
+        - static ParkingLot instance
+        + List~ParkingFloor~ floors
+        + List~EntranceGate~ entranceGates
+        + List~ExitGate~ exitGates
+        + FeeStrategy feeStrategy
+        - ParkingLot()
+        + static getInstance() ParkingLot
+    }
+
+    class ParkingFloor {
+        + String floorId
+        + List~ParkingSpot~ spots
+        + ParkingFloor(String id)
+    }
+
+    class ParkingSpot {
+        <<abstract>>
+        + String id
+        + boolean occupied
+        + Vehicle vehicle
+        + int distanceFromGate
+        + ParkingSpot(String id, int distanceFromGate)
+        + canFit(Vehicle vehicle)* boolean
+        + isAvailable() boolean
+        + park(Vehicle vehicle) void
+        + release() void
+    }
+
+    class CarSpot
+    class BikeSpot
+    class TruckSpot
+
+    class Vehicle {
+        + String licensePlate
+        + VehicleType type
+        + Vehicle(String licensePlate, VehicleType type)
+    }
+
+    class VehicleType {
+        <<enumeration>>
+        CAR
+        BIKE
+        TRUCK
+    }
+
+    class Ticket {
+        + String id
+        + Vehicle vehicle
+        + ParkingSpot spot
+        + LocalDateTime entryTime
+        - Ticket(TicketBuilder builder)
+        + static builder() TicketBuilder
+    }
+
+    class TicketBuilder {
+        - String id
+        - Vehicle vehicle
+        - ParkingSpot spot
+        - LocalDateTime entryTime
+        + id(String id) TicketBuilder
+        + vehicle(Vehicle vehicle) TicketBuilder
+        + spot(ParkingSpot spot) TicketBuilder
+        + build() Ticket
+    }
+
+    %% Gates
+    class EntranceGate {
+        + String gateId
+        + ParkingSpotLookupStrategy lookupStrategy
+        + ParkingLot parkingLot
+        + EntranceGate(String gateId, ParkingSpotLookupStrategy strategy)
+        + parkVehicle(Vehicle vehicle) Ticket
+    }
+
+    class ExitGate {
+        + String gateId
+        + ParkingLot parkingLot
+        + ExitGate(String gateId)
+        + unparkVehicle(Ticket ticket) double
+    }
+
+    %% Strategies
+    class FeeStrategy {
+        <<interface>>
+        + calculate(Ticket ticket) double
+    }
+
+    class HourlyFeeStrategy {
+        + calculate(Ticket ticket) double
+    }
+
+    class ParkingSpotLookupStrategy {
+        <<interface>>
+        + findSpot(Vehicle vehicle, List~ParkingFloor~ floors) ParkingSpot
+    }
+
+    class NearestSpotStrategy {
+        + findSpot(...) ParkingSpot
+    }
+
+    class FirstAvailableStrategy {
+        + findSpot(...) ParkingSpot
+    }
+
+    %% Factories
+    class ParkingSpotFactory {
+        + static createSpot(VehicleType type, String id, int dist) ParkingSpot
+    }
+
+    class StrategyFactory {
+        + static getLookupStrategy(String type) ParkingSpotLookupStrategy
+        + static getFeeStrategy(String type) FeeStrategy
+    }
+
+    %% Relationships (Inheritance / Realization)
+    ParkingSpot <|-- CarSpot
+    ParkingSpot <|-- BikeSpot
+    ParkingSpot <|-- TruckSpot
+    
+    FeeStrategy <|.. HourlyFeeStrategy
+    ParkingSpotLookupStrategy <|.. NearestSpotStrategy
+    ParkingSpotLookupStrategy <|.. FirstAvailableStrategy
+
+    %% Relationships (Composition / Aggregation / Usage)
+    ParkingLot --> ParkingFloor : contains
+    ParkingLot --> EntranceGate : contains
+    ParkingLot --> ExitGate : contains
+    ParkingLot --> FeeStrategy : has default
+    
+    ParkingFloor o-- ParkingSpot : contains
+    ParkingSpot o-- Vehicle : hosts
+    Vehicle --> VehicleType : has
+    
+    Ticket *-- TicketBuilder : built by
+    Ticket --> Vehicle : tracks
+    Ticket --> ParkingSpot : assigned
+    
+    EntranceGate --> ParkingSpotLookupStrategy : uses
+    EntranceGate --> Ticket : creates
+    EntranceGate --> ParkingLot : references
+    
+    ExitGate --> ParkingLot : references
+    ExitGate ..> Ticket : processes
+    
+    ParkingSpotFactory ..> ParkingSpot : creates
+    StrategyFactory ..> FeeStrategy : creates
+    StrategyFactory ..> ParkingSpotLookupStrategy : creates
+
+```
+
+### Diagram Explanations
+
+1. **Inheritance & Implementation**: 
+   - `CarSpot`, `BikeSpot`, and `TruckSpot` inherit from the abstract [ParkingSpot](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/spots/ParkingSpot.java#5-32).
+   - `HourlyFeeStrategy` implements the [FeeStrategy](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/parkingStrategy/StrategyFactory.java#15-21) interface. 
+   - `NearestSpotStrategy` and `FirstAvailableStrategy` implement the `ParkingSpotLookupStrategy` interface.
+2. **Composition & Aggregation**: 
+   - [ParkingLot](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/entities/ParkingLot.java#10-30) aggregates `ParkingFloor`, [EntranceGate](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/gates/EntranceGate.java#11-44), and [ExitGate](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/gates/ExitGate.java#6-22).
+   - [Ticket](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/entities/Ticket.java#7-55) creates and uses its nested [TicketBuilder](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/entities/Ticket.java#20-50) for instantiation.
+3. **Usage via Factories**: 
+   - [ParkingSpotFactory](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/spots/ParkingSpotFactory.java#5-19) handles the logic to spawn specific Spot subclasses.
+   - [StrategyFactory](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/parkingStrategy/StrategyFactory.java#5-22) instantiates specific Strategy implementations. 
+4. **Gates**: 
+   - [EntranceGate](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/gates/EntranceGate.java#11-44) coordinates finding the [ParkingSpot](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/spots/ParkingSpot.java#5-32) via `ParkingSpotLookupStrategy` and issues a [Ticket](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/entities/Ticket.java#7-55).
+   - [ExitGate](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/gates/ExitGate.java#6-22) leverages [ParkingLot](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/entities/ParkingLot.java#10-30)'s [FeeStrategy](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/parkingStrategy/StrategyFactory.java#15-21) context to evaluate the charge based on the given [Ticket](file:///d:/System%20Design/LLD/Implementation/com/interviewQuestions/parkingLot/entities/Ticket.java#7-55).

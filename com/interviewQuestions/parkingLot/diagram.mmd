@@ -1,0 +1,150 @@
+classDiagram
+    %% Core Entities
+    class ParkingLot {
+        - static ParkingLot instance
+        + List~ParkingFloor~ floors
+        + List~EntranceGate~ entranceGates
+        + List~ExitGate~ exitGates
+        + FeeStrategy feeStrategy
+        - ParkingLot()
+        + static getInstance() ParkingLot
+    }
+
+    class ParkingFloor {
+        + String floorId
+        + List~ParkingSpot~ spots
+        + ParkingFloor(String id)
+    }
+
+    class ParkingSpot {
+        <<abstract>>
+        + String id
+        + boolean occupied
+        + Vehicle vehicle
+        + int distanceFromGate
+        + ParkingSpot(String id, int distanceFromGate)
+        + canFit(Vehicle vehicle)* boolean
+        + isAvailable() boolean
+        + park(Vehicle vehicle) void
+        + release() void
+    }
+
+    class CarSpot
+    class BikeSpot
+    class TruckSpot
+
+    class Vehicle {
+        + String licensePlate
+        + VehicleType type
+        + Vehicle(String licensePlate, VehicleType type)
+    }
+
+    class VehicleType {
+        <<enumeration>>
+        CAR
+        BIKE
+        TRUCK
+    }
+
+    class Ticket {
+        + String id
+        + Vehicle vehicle
+        + ParkingSpot spot
+        + LocalDateTime entryTime
+        - Ticket(TicketBuilder builder)
+        + static builder() TicketBuilder
+    }
+
+    class TicketBuilder {
+        - String id
+        - Vehicle vehicle
+        - ParkingSpot spot
+        - LocalDateTime entryTime
+        + id(String id) TicketBuilder
+        + vehicle(Vehicle vehicle) TicketBuilder
+        + spot(ParkingSpot spot) TicketBuilder
+        + build() Ticket
+    }
+
+    %% Gates
+    class EntranceGate {
+        + String gateId
+        + ParkingSpotLookupStrategy lookupStrategy
+        + ParkingLot parkingLot
+        + EntranceGate(String gateId, ParkingSpotLookupStrategy strategy)
+        + parkVehicle(Vehicle vehicle) Ticket
+    }
+
+    class ExitGate {
+        + String gateId
+        + ParkingLot parkingLot
+        + ExitGate(String gateId)
+        + unparkVehicle(Ticket ticket) double
+    }
+
+    %% Strategies
+    class FeeStrategy {
+        <<interface>>
+        + calculate(Ticket ticket) double
+    }
+
+    class HourlyFeeStrategy {
+        + calculate(Ticket ticket) double
+    }
+
+    class ParkingSpotLookupStrategy {
+        <<interface>>
+        + findSpot(Vehicle vehicle, List~ParkingFloor~ floors) ParkingSpot
+    }
+
+    class NearestSpotStrategy {
+        + findSpot(...) ParkingSpot
+    }
+
+    class FirstAvailableStrategy {
+        + findSpot(...) ParkingSpot
+    }
+
+    %% Factories
+    class ParkingSpotFactory {
+        + static createSpot(VehicleType type, String id, int dist) ParkingSpot
+    }
+
+    class StrategyFactory {
+        + static getLookupStrategy(String type) ParkingSpotLookupStrategy
+        + static getFeeStrategy(String type) FeeStrategy
+    }
+
+    %% Relationships (Inheritance / Realization)
+    ParkingSpot <|-- CarSpot
+    ParkingSpot <|-- BikeSpot
+    ParkingSpot <|-- TruckSpot
+    
+    FeeStrategy <|.. HourlyFeeStrategy
+    ParkingSpotLookupStrategy <|.. NearestSpotStrategy
+    ParkingSpotLookupStrategy <|.. FirstAvailableStrategy
+
+    %% Relationships (Composition / Aggregation / Usage)
+    ParkingLot --> ParkingFloor : contains
+    ParkingLot --> EntranceGate : contains
+    ParkingLot --> ExitGate : contains
+    ParkingLot --> FeeStrategy : has default
+    
+    ParkingFloor o-- ParkingSpot : contains
+    ParkingSpot o-- Vehicle : hosts
+    Vehicle --> VehicleType : has
+    
+    Ticket *-- TicketBuilder : built by
+    Ticket --> Vehicle : tracks
+    Ticket --> ParkingSpot : assigned
+    
+    EntranceGate --> ParkingSpotLookupStrategy : uses
+    EntranceGate --> Ticket : creates
+    EntranceGate --> ParkingLot : references
+    
+    ExitGate --> ParkingLot : references
+    ExitGate ..> Ticket : processes
+    
+    ParkingSpotFactory ..> ParkingSpot : creates
+    StrategyFactory ..> FeeStrategy : creates
+    StrategyFactory ..> ParkingSpotLookupStrategy : creates

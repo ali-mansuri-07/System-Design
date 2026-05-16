@@ -1,0 +1,56 @@
+Parking Lot System Design Documentation
+
+1. System Requirements
+The Parking Lot system is designed to simulate a real-world parking structure with the following capabilities:
+- Multiple Floors & Spots: The lot encompasses multiple floors (ParkingFloor), each containing various types of parking spots (ParkingSpot) to accommodate different vehicle sizes.
+- Vehicle Diversity: The system handles various vehicles (Vehicle), primarily categorizing them into Cars, Bikes, and Trucks (VehicleType).
+- Multiple Gates: The lot supports multiple entrance (EntranceGate) and exit (ExitGate) points.
+- Ticket Generation: When a vehicle enters, a Ticket is generated holding details about the vehicle, assigned spot, and entry time.
+- Parking Strategies: Supports multiple strategies for assigning a parking spot (e.g., Nearest Spot, First Available Spot).
+- Fee Calculation: Supports dynamic strategies for calculating the parking fee upon exit (e.g., Hourly processing).
+
+2. Technical Approach & Architecture
+The codebase is structured around core domain entities that closely resemble their real-world counterparts. 
+- Entities: 
+  - ParkingLot acts as the central manager holding the floors and gates. 
+  - ParkingFloor represents a level in the lot, containing a list of ParkingSpots.
+  - Vehicle and Ticket represent the actors and the transaction record in the system.
+- Gates:
+  - EntranceGate is responsible for finding a spot using a lookup strategy, parking the vehicle, and generating a ticket.
+  - ExitGate frees up the spot and computes the fee using a fee strategy.
+- Strategies: The logic for finding a spot and computing fees is modularized into interfaces, allowing the system behavior to adapt without modifying the core gate implementations.
+
+3. Design Patterns Used & Why
+
+During the implementation, several Gang of Four (GoF) design patterns were utilized to ensure the system is scalable, maintainable, and loosely coupled.
+
+A. Singleton Pattern
+- Where it's used: ParkingLot class.
+- Why: In a single application deployment, the physical parking lot represents a single source of truth. Enforcing a Singleton prevents the accidental creation of multiple parking lot instances, ensuring that all entrance gates, exit gates, and system administrators share the exact same state (floors, spots, and occupancy limits) and eliminating the risk of double-booking a spot.
+
+B. Strategy Pattern
+- Where it's used: FeeStrategy (e.g., HourlyFeeStrategy) and ParkingSpotLookupStrategy (e.g., NearestSpotStrategy, FirstAvailableStrategy).
+- Why: Fee structures and spot-allocation algorithms change often depending on business requirements. By abstracting these algorithms into interfaces, the entrance and exit gates do not need to contain massive if-else blocks. It adheres to the Open/Closed Principle, enabling the addition of new strategies (like HolidayFeeStrategy or VIPSpotStrategy) without altering the core gate code.
+
+C. Simple Factory Pattern
+- Where it's used: ParkingSpotFactory and StrategyFactory.
+- Why: 
+  - Spot Factory: The creation of a spot involves deciding which subclass (CarSpot, BikeSpot, TruckSpot) to instantiate based on a parameter. The factory encapsulates this logic, keeping Main.java or floor setup code clean.
+  - Strategy Factory: Instead of the client manually instantiating concrete strategies, StrategyFactory provides them based on configuration strings. This decouples object creation from the consumer.
+
+D. Builder Pattern
+- Where it's used: Ticket.TicketBuilder class.
+- Why: A parking ticket holds various fields (id, vehicle, spot, entryTime), and setting all of these via a massive constructor is rigid and error-prone (telescoping constructor anti-pattern). The Builder pattern allows for a clear, step-by-step, highly readable construction of the Ticket object. It also makes it trivial to make fields optional without adding new constructor overloads or setters that violate immutability.
+
+4. Flow of Execution
+- Initialization: The ParkingLot singleton is fetched. ParkingFloors are created, and ParkingSpots are populated using the ParkingSpotFactory.
+- Gating Check: EntranceGates and ExitGates are mapped with their respective strategies fetched via StrategyFactory.
+- Vehicle Entry: 
+   - A Vehicle arrives at an EntranceGate. 
+   - The gate queries its ParkingSpotLookupStrategy to find an open spot.
+   - The spot is marked as occupied (park()).
+   - The gate uses Ticket.builder() to formulate and dispense a Ticket.
+- Vehicle Exit:
+   - The Vehicle presents the Ticket to the ExitGate.
+   - The gate reads the ticket, marks the associated ParkingSpot as free (release()).
+   - The gate consults the ParkingLot's global FeeStrategy to calculate and return the final fee.
